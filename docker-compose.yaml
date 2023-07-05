@@ -1,0 +1,24 @@
+services:
+  mqtt:
+    image: docker.io/eclipse-mosquitto
+    ports:
+      - 1883:1883
+      - 9001:9001
+    volumes:
+      - ./configs/mosquitto.conf:/mosquitto/config/mosquitto.conf
+# inlet:
+#    build: ./inlet/.
+  db:
+    image: docker.io/postgres
+    environment:
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets: 
+      - db_password
+  adminer:
+    image: docker.io/adminer
+    ports:
+      - 8080:8080
+
+secrets:
+  db_password:
+    file: ./configs/db_password.txt

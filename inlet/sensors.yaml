@@ -1,0 +1,32 @@
+living_room:
+  sensors:
+    temp:
+        count: 100
+        val:
+          type: float
+          min: 0.0
+          max: 100.0
+
+kitchen:
+  sensors:
+    temp:
+        count: 100
+        val:
+          type: float
+          min: 0.0
+          max: 100.0
+    light:
+        count: 100
+        val:
+          type: float
+          min: 0.0
+          max: 100.0
+
+garage:
+  sensors:
+    motion:
+        count: 100
+        val:
+          type: int
+          min: 0.0
+          max: 100.0
