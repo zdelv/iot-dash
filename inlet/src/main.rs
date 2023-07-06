@@ -4,6 +4,11 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, error::Error, time::Duration};
 
 #[derive(Serialize, Deserialize)]
+struct Payload {
+    data: f32
+}
+
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 enum ValType {
     Float,
@@ -26,6 +31,7 @@ struct Sensor {
 
 #[derive(Serialize, Deserialize)]
 struct Location {
+    root: String,
     sensors: HashMap<String, Sensor>,
 }
 
@@ -89,13 +95,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let mut names = Vec::with_capacity(capacity as usize);
 
         for (name, location) in &sensor_settings {
-            println!("Location: {}", name.blue());
+            println!("Location: {}", format!("{}/{}", location.root, name).blue());
             for (sensor_name, sensor) in &location.sensors {
                 println!("\tSensor Name: {}, Count: {}", sensor_name.green(), sensor.count);
 
                 for i in 0..sensor.count {
                     let derived_name =
-                        format!("{}/{}/{}", name.clone(), sensor_name.clone(), i.to_string());
+                        format!("{}/{}/{}/{}", location.root, name, sensor_name, i);
 
                     names.push(derived_name);
                 }
@@ -124,20 +130,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Publish task
     // TODO: Change this to either one task per sensor type, or one task per sensor
-    let pub_count: u16 = 1000;
-    let publish_task: tokio::task::JoinHandle<Result<(), rumqttc::ClientError>> =
+    const PUB_COUNT: u16 = 10_000;
+    let publish_task: tokio::task::JoinHandle<Result<(), Box<dyn Error + Send + Sync>>> =
         tokio::spawn(async move {
-            for i in 1..pub_count {
+            for _ in 1..PUB_COUNT {
                 for sensor in &sensor_names {
+                    let data = bincode::serialize(&Payload { data: rand::random() })?;
                     client
-                        .publish(sensor, QoS::AtLeastOnce, false, vec![i as u8; 32])
+                        .publish(sensor, QoS::AtLeastOnce, false, data)
                         .await?;
                     // tokio::time::sleep(Duration::from_millis(5)).await;
                 }
             }
             Ok(())
         });
-    println!("Publishing {} times per sensor...", pub_count);
+    println!("Publishing {} times per sensor...", PUB_COUNT);
 
     // Await both tasks for their results.
     // We only care about the errors, so just return them here if they occur.

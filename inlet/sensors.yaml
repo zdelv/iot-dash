@@ -1,4 +1,5 @@
 living_room:
+  root: home
   sensors:
     temp:
         count: 100
@@ -8,6 +9,7 @@ living_room:
           max: 100.0
 
 kitchen:
+  root: home
   sensors:
     temp:
         count: 100
@@ -23,6 +25,7 @@ kitchen:
           max: 100.0
 
 garage:
+  root: home
   sensors:
     motion:
         count: 100
