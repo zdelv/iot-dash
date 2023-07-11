@@ -60,6 +60,8 @@ podman create \
 	--network-alias ingest \
 	--name ingest \
 	--restart on-failure \
+	-e CONFIG=config.yaml \
 	--volume ./ingest/.env:/.env \
+	--volume ./ingest/config.yaml:/config.yaml \
 	ingest \
 	ingest

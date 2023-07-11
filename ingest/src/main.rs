@@ -15,15 +15,76 @@ use tokio::{
     sync::{mpsc, RwLock},
     task,
 };
+use anyhow::anyhow;
 
-type Database = HashMap<i32, VecDeque<f32>>;
+type Database = HashMap<String, VecDeque<f32>>;
 type SensorIDMap = HashMap<String, i32>;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "lowercase")]
+enum Operation {
+    Average,
+    Minimum,
+    Maximum,
+    Count,
+}
+
+impl std::fmt::Display for Operation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let o = match self {
+            Operation::Average => "avg",
+            Operation::Minimum => "min",
+            Operation::Maximum => "max",
+            Operation::Count => "count",
+        };
+        f.write_str(o)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct SensorConfig {
+    name: String,
+    topic: String,
+    operations: Vec<Operation>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Config {
+    interval: u32,
+    sensors: Vec<SensorConfig>,
+}
+
+#[derive(Debug)]
+struct Topic {
+    regex: regex::Regex,
+}
+
+impl From<&str> for Topic {
+    fn from(value: &str) -> Self {
+        Topic {
+            regex: regex::Regex::new(value).unwrap(),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct SensorInfo {
+    topic: Topic,
+    operations: Vec<Operation>,
+}
+
+impl SensorInfo {
+    fn new(topic: Topic, operations: Vec<Operation>) -> Self {
+        SensorInfo { topic, operations }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 struct Payload {
     data: f32,
 }
 
+#[derive(Debug)]
 enum ChannelMessage {
     Data { data: f32, topic: String },
     Stop,
@@ -45,42 +106,12 @@ async fn run_eventloop(
     }
 }
 
-async fn get_known_sensors(pool: &PgPool) -> anyhow::Result<HashMap<String, i32>> {
-    let rec = sqlx::query("SELECT * FROM sensors")
-        .map(|row: PgRow| (row.get("topic"), row.get("sensor_id")))
-        .fetch_all(pool)
-        .await?;
-
-    let map: HashMap<_, _> = rec.into_iter().collect();
-    Ok(map)
-}
-
-async fn insert_new_sensor(pool: &PgPool, topic: String) -> anyhow::Result<i32> {
-    let rec = sqlx::query(
-        r#"
-INSERT INTO sensors (topic)
-VALUES ($1)
-RETURNING sensor_id
-        "#,
-    )
-    .bind(topic)
-    .fetch_one(pool)
-    .await?;
-
-    Ok(rec.try_get("sensor_id")?)
-}
-
 async fn handle_data(
     database: Arc<RwLock<Database>>,
-    pool: PgPool,
     mut recv_ch: mpsc::Receiver<ChannelMessage>,
     storage: usize,
 ) -> anyhow::Result<()> {
     const FLAG_SET_TIME: u64 = 3;
-
-    // Map for topic to sensor_id. IDs are created by the database.
-    let mut sensor_id_map: SensorIDMap = get_known_sensors(&pool).await?;
-    println!("Found {} sensors in db", sensor_id_map.len());
 
     // Rather than push every event into the database by grabbing and releasing the lock over and
     // over, we feed into a queue that stores some number of events. When this queue reaches
@@ -118,16 +149,7 @@ async fn handle_data(
                         let mut db = database.write().await;
 
                         for (data, topic) in queue.drain(..) {
-                            let id: i32 = match sensor_id_map.entry(topic.clone()) {
-                                Entry::Occupied(e) => *e.get(),
-                                Entry::Vacant(e) => {
-                                    let id = insert_new_sensor(&pool, topic.clone()).await?;
-                                    e.insert(id);
-                                    id
-                                }
-                            };
-
-                            match db.entry(id) {
+                            match db.entry(topic) {
                                 Entry::Occupied(mut e) => {
                                     let v = e.get_mut();
                                     v.push_back(data);
@@ -148,8 +170,42 @@ async fn handle_data(
     }
 }
 
-async fn insert_data(pool: &PgPool, sensor_id: i32, data: &[f32; 3]) -> anyhow::Result<()> {
-    let types = vec!["min", "max", "avg"];
+async fn get_known_sensors(pool: &PgPool) -> anyhow::Result<HashMap<String, i32>> {
+    let rec = sqlx::query("SELECT * FROM sensors")
+        .map(|row: PgRow| (row.get("topic"), row.get("sensor_id")))
+        .fetch_all(pool)
+        .await?;
+
+    let map: HashMap<_, _> = rec.into_iter().collect();
+    Ok(map)
+}
+
+async fn insert_new_sensor(pool: &PgPool, topic: String) -> anyhow::Result<i32> {
+    let rec = sqlx::query(
+        r#"
+INSERT INTO sensors (topic)
+VALUES ($1)
+RETURNING sensor_id
+        "#,
+    )
+    .bind(topic)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(rec.try_get("sensor_id")?)
+}
+
+async fn insert_data(
+    pool: &PgPool,
+    sensor_id: i32,
+    operations: &[Operation],
+    data: &[f32],
+) -> anyhow::Result<()> {
+    if operations.len() != data.len() {
+        return Err(anyhow!("The number of operations does not match the number of data points"));
+    }
+
+    let types: Vec<String> = operations.iter().map(|o| o.to_string()).collect();
 
     sqlx::query(
         r#"
@@ -169,8 +225,13 @@ VALUES ($1, $2::reading_type[], $3::real[])
 async fn parse_data(
     database: Arc<RwLock<Database>>,
     pool: PgPool,
+    sensor_infos: Vec<SensorInfo>,
     repeat: u64,
 ) -> anyhow::Result<()> {
+    // Map for topic to sensor_id. IDs are created by the database.
+    let mut sensor_id_map: SensorIDMap = get_known_sensors(&pool).await?;
+    println!("Found {} sensors in db", sensor_id_map.len());
+
     loop {
         // Only parse data every repeat seconds.
         tokio::time::sleep(Duration::from_secs(repeat)).await;
@@ -183,24 +244,55 @@ async fn parse_data(
             // of the data. Clear the data vec after using it.
             let mut sensor_count = 0;
             let mut data_count = 0;
-            for (sensor_id, data) in db.iter_mut() {
+            for (topic, data) in db.iter_mut() {
+                let id: i32 = match sensor_id_map.entry(topic.clone()) {
+                    Entry::Occupied(e) => *e.get(),
+                    Entry::Vacant(e) => {
+                        let id = insert_new_sensor(&pool, topic.clone()).await?;
+                        e.insert(id);
+                        id
+                    }
+                };
+
                 if !data.is_empty() {
-                    let max = data
-                        .iter()
-                        .max_by(|a, b| a.total_cmp(b))
-                        .unwrap_or(&f32::NAN);
-                    let min = data
-                        .iter()
-                        .min_by(|a, b| a.total_cmp(b))
-                        .unwrap_or(&f32::NAN);
-                    let samples = data.len();
-                    let avg: f32 = data.iter().sum::<f32>() / (samples as f32);
+                    for info in &sensor_infos {
+                        if info.topic.regex.is_match(topic) {
+                            let mut results = Vec::with_capacity(info.operations.len());
 
-                    // Insert data into the remote database.
-                    insert_data(&pool, *sensor_id, &[*min, *max, avg]).await?;
+                            for op in &info.operations {
+                                match op {
+                                    Operation::Average => {
+                                        let samples = data.len();
+                                        let avg: f32 = data.iter().sum::<f32>() / (samples as f32);
+                                        results.push(avg);
+                                    }
+                                    Operation::Maximum => {
+                                        let max = data
+                                            .iter()
+                                            .max_by(|a, b| a.total_cmp(b))
+                                            .unwrap_or(&f32::NAN);
+                                        results.push(*max);
+                                    }
+                                    Operation::Minimum => {
+                                        let min = data
+                                            .iter()
+                                            .min_by(|a, b| a.total_cmp(b))
+                                            .unwrap_or(&f32::NAN);
+                                        results.push(*min);
+                                    }
+                                    Operation::Count => {
+                                        results.push(data.len() as f32);
+                                    }
+                                }
+                            }
 
-                    sensor_count += 1;
-                    data_count += data.len();
+                            // Insert data into the remote database.
+                            insert_data(&pool, id, &info.operations, &results).await?;
+                            sensor_count += 1;
+                            data_count += data.len();
+                        }
+                    }
+
                     data.clear();
                 }
             }
@@ -217,18 +309,36 @@ async fn parse_data(
 
 #[tokio::main()]
 async fn main() -> anyhow::Result<()> {
+    // Modify environmental variables by reading in from .env file.
     dotenvy::dotenv()?;
 
+    // TODO: Actually handle the errors below. ? should really only be used in functions that call
+    // from main. Main should handle all errors and display more useful context or attempt to
+    // recover.
+
+    // Read in config file.
+    let config = std::env::var("CONFIG")?;
+    let config = std::fs::File::open(config)?;
+    let config: Config = serde_yaml::from_reader(config)?;
+
+    let interval = config.interval;
+    let sensor_infos: Vec<SensorInfo> = config
+        .sensors
+        .into_iter()
+        .map(|s| SensorInfo::new(s.topic.as_str().into(), s.operations))
+        .collect();
+
+    // Read in URL to the local database.
     let database_url = match std::env::var("DEV") {
         Ok(_) => std::env::var("DEV_DATABASE_URL")?,
-        Err(_) => std::env::var("DATABASE_URL")?
+        Err(_) => std::env::var("DATABASE_URL")?,
     };
 
+    // Read in hostname to the local MQTT broker.
     let mqtt_hostname = match std::env::var("DEV") {
         Ok(_) => std::env::var("DEV_MQTT_HOSTNAME")?,
-        Err(_) => std::env::var("MQTT_HOSTNAME")?
+        Err(_) => std::env::var("MQTT_HOSTNAME")?,
     };
-
     let mqtt_selfname = std::env::var("MQTT_SELFNAME")?;
     let mqtt_port = std::env::var("MQTT_PORT")?.parse::<u16>()?;
 
@@ -240,7 +350,7 @@ async fn main() -> anyhow::Result<()> {
                 .await;
 
             if let Ok(p) = pool {
-                break p
+                break p;
             }
 
             tokio::time::sleep(Duration::from_secs(1)).await;
@@ -261,9 +371,14 @@ async fn main() -> anyhow::Result<()> {
     // MQTT Eventloop
     let eventloop_task = task::spawn(run_eventloop(eventloop, db_write_ch.clone()));
     // Data Handler (pushes data into database)
-    let handle_task = task::spawn(handle_data(database.clone(), pool.clone(), db_read_ch, 100));
+    let handle_task = task::spawn(handle_data(database.clone(), db_read_ch, 100));
     // Data Parser (routinely computes statistics on data)
-    let parse_task = task::spawn(parse_data(database, pool.clone(), 5));
+    let parse_task = task::spawn(parse_data(
+        database,
+        pool.clone(),
+        sensor_infos,
+        interval as u64,
+    ));
 
     // Wait for any of the tasks (or ctrl+c) to return.
     // tokio::task() returns Result<..., JoinError>, meaning if we return a result from the task,

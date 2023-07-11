@@ -1,0 +1,28 @@
+interval: 5
+sensors:
+- name: living_room_temp
+  topic: home/living_room/temp/\d+
+  operations:
+    - average
+    - minimum
+    - maximum
+- name: kitchen_temp
+  topic: home/kitchen/temp/\d+
+  operations:
+    - average
+    - minimum
+    - maximum
+- name: kitchen_light
+  topic: home/kitchen/temp/\d+
+  operations:
+    - average
+    - minimum
+    - maximum
+- name: garage_door
+  topic: home/garage/door/\d+
+  operations:
+    - count
+- name: garage_motion
+  topic: home/garage/motion/\d+
+  operations:
+    - count
