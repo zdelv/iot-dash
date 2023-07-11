@@ -15,13 +15,13 @@ orchestration is done via Podman, with shell scripts for defining the Pod.
 
 Expected uses of the platform are the following:
 
-- A small home with a myriad of DIY (or off-the-shelf) sensors.
+- A small home with a small amount of DIY (or off-the-shelf) sensors.
     - Sensor types might include temperature, CO&#8322;, occupancy, and soil moisture.
     - This may also include toggleable sensors like door sensors.
 - A large factory with thousands of sensors across a manufacturing line.
     - This is somewhat similar to the small home user, but with just much higher
         sensor counts and stricter requirements on data storage and alerting.
-    - The realtime analytics can be used to alert for faults aswell as perform
+    - The realtime analytics can be used to alert for faults as well as perform
         statistics on overall yields or equipment uptime.
     - The dashboard would be used by non-engineering (business, finance, etc)
         members for reporting purposes.
@@ -44,7 +44,7 @@ git clone https://git.sr.ht/~rael/iot_dash
 cd iot_dash
 ```
 
-Create the pod by running `create_pod.sh` and provide a pod name as the first
+Create the pod by running `create_pod.sh` and providing a pod name as the first
 argument:
 
 ```bash
