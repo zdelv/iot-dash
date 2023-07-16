@@ -4,11 +4,11 @@ CREATE TABLE sensors (
 	PRIMARY KEY(sensor_id)
 );
 
-CREATE TYPE READING_TYPE AS ENUM ('min', 'max', 'avg', 'med', 'count');
+CREATE TYPE READING_TYPE AS ENUM ('minimum', 'maximum', 'average', 'median', 'count');
 CREATE TABLE stats (
 	reading_id SERIAL NOT NULL UNIQUE,
 	sensor_id INT NOT NULL,
-	timestamp TIMESTAMP NOT NULL,
+	timestamp TIMESTAMPTZ NOT NULL,
 	type READING_TYPE[] NOT NULL,
 	reading REAL[] NOT NULL,
 	PRIMARY KEY(reading_id),
