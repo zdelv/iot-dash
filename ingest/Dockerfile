@@ -1,12 +1,15 @@
 FROM rust:1.70 as builder
 WORKDIR /usr/src/ingest
-RUN mkdir src
+RUN mkdir ingest
+RUN mkdir ingest/src
 
-COPY ./.env .env
-COPY ./src ./src
-COPY ./Cargo* .
+COPY ./ingest/.env .env
+COPY ./ingest/src ./ingest/src
+COPY ./ingest/Cargo* ./ingest/.
 
-RUN cargo install --path .
+COPY ./common ./common
+
+RUN cargo install --path ingest
 
 From debian:bullseye-slim
 # UN apt-get update && apt-get install -y extra-runtime-dependencies && rm -rf /var/lib/apt/lists/*

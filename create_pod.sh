@@ -50,7 +50,7 @@ podman create \
 if [[ $(podman inspect ingest) == "[]" ]]; then
 	echo "Could not find the ingest image. Building it now."
 	cd ingest
-	podman build -t ingest .
+	podman build -t ingest ../ --file Dockerfile
 fi
 
 # Ingest
