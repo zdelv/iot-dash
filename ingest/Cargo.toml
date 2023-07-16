@@ -16,3 +16,4 @@ serde = { version = "1.0.166", features = ["derive"] }
 serde_yaml = "0.9.22"
 sqlx = { version = "0.7.0", features = ["postgres", "runtime-tokio-native-tls"] }
 tokio = { version = "1.29.1", features = ["full"] }
+common = { path = "../common" }

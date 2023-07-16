@@ -16,36 +16,17 @@ use tokio::{
     task,
 };
 use anyhow::anyhow;
+use common::ReadingType;
 
 type Database = HashMap<String, VecDeque<f32>>;
 type SensorIDMap = HashMap<String, i32>;
 
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "lowercase")]
-enum Operation {
-    Average,
-    Minimum,
-    Maximum,
-    Count,
-}
-
-impl std::fmt::Display for Operation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let o = match self {
-            Operation::Average => "avg",
-            Operation::Minimum => "min",
-            Operation::Maximum => "max",
-            Operation::Count => "count",
-        };
-        f.write_str(o)
-    }
-}
 
 #[derive(Serialize, Deserialize, Debug)]
 struct SensorConfig {
     name: String,
     topic: String,
-    operations: Vec<Operation>,
+    operations: Vec<ReadingType>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -70,11 +51,11 @@ impl From<&str> for Topic {
 #[derive(Debug)]
 struct SensorInfo {
     topic: Topic,
-    operations: Vec<Operation>,
+    operations: Vec<ReadingType>,
 }
 
 impl SensorInfo {
-    fn new(topic: Topic, operations: Vec<Operation>) -> Self {
+    fn new(topic: Topic, operations: Vec<ReadingType>) -> Self {
         SensorInfo { topic, operations }
     }
 }
@@ -198,7 +179,7 @@ RETURNING sensor_id
 async fn insert_data(
     pool: &PgPool,
     sensor_id: i32,
-    operations: &[Operation],
+    operations: &[ReadingType],
     data: &[f32],
 ) -> anyhow::Result<()> {
     if operations.len() != data.len() {
@@ -261,27 +242,30 @@ async fn parse_data(
 
                             for op in &info.operations {
                                 match op {
-                                    Operation::Average => {
+                                    ReadingType::Average => {
                                         let samples = data.len();
                                         let avg: f32 = data.iter().sum::<f32>() / (samples as f32);
                                         results.push(avg);
                                     }
-                                    Operation::Maximum => {
+                                    ReadingType::Maximum => {
                                         let max = data
                                             .iter()
                                             .max_by(|a, b| a.total_cmp(b))
                                             .unwrap_or(&f32::NAN);
                                         results.push(*max);
                                     }
-                                    Operation::Minimum => {
+                                    ReadingType::Minimum => {
                                         let min = data
                                             .iter()
                                             .min_by(|a, b| a.total_cmp(b))
                                             .unwrap_or(&f32::NAN);
                                         results.push(*min);
                                     }
-                                    Operation::Count => {
+                                    ReadingType::Count => {
                                         results.push(data.len() as f32);
+                                    }
+                                    ReadingType::Median => {
+                                        return Err(anyhow!("Median not yet implemented"))
                                     }
                                 }
                             }
