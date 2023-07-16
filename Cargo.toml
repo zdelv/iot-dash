@@ -2,5 +2,6 @@
 members = [
 	"ingest",
 	"inlet",
+	"db-api",
 	"common"
 ]
