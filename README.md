@@ -233,3 +233,6 @@ front-end and UI). Maybe later, if time allows.
 - [ ] Allow ingest to post readings without calculations (good for low frequency sensors).
 - [ ] Switch to using yaml configs everywhere and remove environmental variables unless needed.
 - [ ] Correctly handle errors around the codebase.
+
+## License
+MIT
