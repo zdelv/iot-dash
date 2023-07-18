@@ -5,8 +5,10 @@ ingest and dashboarding system. IoT in this case is defined as a set of small
 internet-connected sensors that transmit small packets at a high frequency,
 almost immediately after data acquisition. This platform starts by taking in raw
 data from sensors over some transport layer (MQTT), then performing real-time
-analytics and submitting to a database (PostgreSQL). A front-end for custom
-visualization is also available (Django + React).
+analytics and submitting to a database (PostgreSQL). The database is wrapped
+with a REST API that supports GET and POST requests for sensor information and
+readings. A front-end can then be built on top of this database API for
+information retrieval.
 
 All of this is designed to be containerized and can run semi-independently. Some
 requirements exist, like the connection between the real-time analytics
@@ -24,7 +26,7 @@ Expected uses of the platform are the following:
     - The realtime analytics can be used to alert for faults as well as perform
         statistics on overall yields or equipment uptime.
     - The dashboard would be used by non-engineering (business, finance, etc)
-        members for reporting purposes.
+        members for reporting purposes. (Not implemented here)
 
 
 ## Usage
@@ -68,6 +70,19 @@ Pod resource usage can be found with:
 ```bash
 podman pod stats
 ```
+
+Stop the pod:
+
+```bash
+podman pod stop iot_dash_pod
+```
+
+Sometimes this doesn't actually stop the pod (check with `podman ps --pod`), so manually kill all containers:
+
+```bash
+podman pod stop mqtt db adminer db-api ingest
+```
+
 
 ## Architecture
 
@@ -140,50 +155,47 @@ at peak demand, or for resiliency if any one service fails.
 The architecture of the platform is summarized in the following diagram:
 
 ```
-              1. Sensors
+                    1. Sensors
 
-           ┌───┐ ┌───┐ ┌───┐
-           │   │ │   │ │   │
-           └───┘ └─┬─┘ └───┘
-                   │
-                   ▼
-          ┌──────────────────┐
-          │                  │
-          │  2. MQTT Broker  │
-          │                  │
-          └────────┬─────────┘
-                   │
-                   ▼
-          ┌──────────────────┐
-          │                  │
-          │  3. Ingest App.  │
-          │                  │
-          └─────┬────────────┘
-                │      ▲
-                ▼      │
-         ┌─────────────┴─────┐
-         │                   │
-         │   4. Database     │
-         │    (PostgreSQL)   │   ▲
-         │                   │   │
-         └──────┬────────────┘   │ Backend
-                │      ▲
- ────────────── │ ──── │ ─────────────
-                ▼      │
-          ┌────────────┴───┐     │ Frontend
-          │                │     │
-          │  5. Frontend   │     ▼
-          │     (Django)   │
-          │                │
-          └────┬───────────┘
-               │      ▲
-               ▼      │
-           ┌──────────┴───┐
-           │              │
-           │  6.  UI      │
-           │    (React)   │
-           │              │
-           └──────────────┘
+                 ┌───┐ ┌───┐ ┌───┐
+                 │   │ │   │ │   │
+                 └───┘ └─┬─┘ └───┘
+                         │
+                         ▼
+                ┌──────────────────┐
+                │                  │
+                │  2. MQTT Broker  │
+                │                  │
+                └────────┬─────────┘
+                         │
+                         ▼
+                ┌──────────────────┐
+                │                  │
+                │  3. Ingest App.  │
+                │                  │
+                └─────┬────────────┘
+                      │      ▲
+                      ▼      │              ┌───────────────────┐
+               ┌─────────────┴─────┐        │                   │
+               │                   ├──────► │   5. Database     │
+           ▲   │  4. Database API  │        │    (PostgreSQL)   │
+           │   │                   │◄───────┤                   │
+   Backend │   └──────┬────────────┘        └───────────────────┘
+                      │      ▲
+       ────────────── │ ──── │ ─────────────
+                      ▼      │
+  Frontend │    ┌────────────┴────┐
+           │    │                 │
+           ▼    │   6. Frontend   │
+                │                 │
+                └─────┬───────────┘
+                      │      ▲
+                      ▼      │
+                 ┌───────────┴───┐
+                 │               │
+                 │    7.  UI     │
+                 │               │
+                 └───────────────┘
 ```
 
 Each point is further explained below:
@@ -200,8 +212,24 @@ Each point is further explained below:
         average, minimum, and maximum calculations every X seconds, while
         treating a door sensor by calculating the number of activations over the
         last X seconds.
-4. Results from the ingest application are subimtted to the database.
-5. A front-end application allows for communication between the database and a
+4. The ingest application submits calculations into the database API.
+    - The database API is a REST API that allows for GET and POST of sensors
+        and readings.
+5. Results from the ingest application are subimtted to the database.
+6. A front-end application allows for communication between the database and a
    user.
-6. The UI allows users to define custom dashboards for their use-case, then share
+7. The UI allows users to define custom dashboards for their use-case, then share
    the embedded code to others and allow for them to see the same dashboard.
+
+Both 6 and 7 are not implemented in this codebase as of right now (the
+front-end and UI). Maybe later, if time allows.
+
+## TODO
+
+- [ ] Cleanup fake passwords and correctly use secrets. (There aren't any actual secrets in the codebase, but there are placeholder "passwords".)
+- [ ] Modify the sensor payload to take in a raw f32 instead of a encoded Rust struct.
+- [ ] Potentially add metadata to the sensor payload. Not sure exactly what would be useful, but maybe.
+- [ ] Add alerting to ingest's features. Send an email or a payload to a specific URL.
+- [ ] Allow ingest to post readings without calculations (good for low frequency sensors).
+- [ ] Switch to using yaml configs everywhere and remove environmental variables unless needed.
+- [ ] Correctly handle errors around the codebase.
