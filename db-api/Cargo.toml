@@ -15,5 +15,6 @@ serde_with = "3.0.0"
 sqlx = { version = "0.7.1", features = ["runtime-tokio-native-tls", "postgres"] }
 tokio = { version = "1.29.1", features = ["full"] }
 tracing = "0.1.37"
-tracing-subscriber = "0.3.17"
+tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 common = { path = "../common" }
+tracing-appender = "0.2.2"
