@@ -1,11 +1,16 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_with::{formats::Strict, TimestampMilliSeconds};
-use sqlx::{FromRow, postgres::{PgHasArrayType, PgTypeInfo}};
+use sqlx::{
+    postgres::{PgHasArrayType, PgTypeInfo},
+    FromRow,
+};
 
+#[derive(Serialize, Deserialize, Debug, sqlx::Type)]
+pub struct SensorId(pub i32);
 
 #[serde_with::serde_as]
-#[derive(Serialize, Deserialize, FromRow)]
+#[derive(Serialize, Deserialize, FromRow, Debug)]
 pub struct Reading {
     reading_id: i32,
     sensor_id: i32,
@@ -17,7 +22,7 @@ pub struct Reading {
     reading: Vec<f32>,
 }
 
-#[derive(Serialize, Deserialize, Debug, sqlx::Type)]
+#[derive(Serialize, Deserialize, Debug, Clone, sqlx::Type)]
 #[serde(rename_all = "lowercase")]
 #[sqlx(type_name = "reading_type")]
 #[sqlx(rename_all = "lowercase")]
@@ -55,12 +60,26 @@ impl std::fmt::Display for ReadingType {
     }
 }
 
-#[derive(Serialize, Deserialize, FromRow)]
+#[derive(Serialize, Deserialize, sqlx::Type, FromRow, Debug)]
 pub struct Sensor {
-    sensor_id: i32,
-    topic: String,
+    pub sensor_id: i32,
+    pub topic: String,
 }
 
+impl PgHasArrayType for Sensor {
+    fn array_type_info() -> PgTypeInfo {
+        // NOTE: The type name has an underscore prefixed for some reason.
+        // I have never seen the db report the type name with the underscore, so I'm not sure where that's
+        // coming from...
+        PgTypeInfo::with_name("_sensor")
+    }
+}
+
+#[derive(Serialize, Deserialize, FromRow, Debug)]
+pub struct SensorType {
+    sensor_type_id: i32,
+    type_name: String,
+}
 
 #[cfg(test)]
 mod tests {
