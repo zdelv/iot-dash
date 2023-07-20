@@ -59,7 +59,7 @@ Start the pod using `podman`:
 podman pod start iot_dash_pod
 ```
 
-Monitor the pod's startup:
+Monitor the pod's startup (the pod should not say degraded):
 
 ```bash
 podman ps --pod
@@ -82,6 +82,82 @@ Sometimes this doesn't actually stop the pod (check with `podman ps --pod`), so 
 ```bash
 podman pod stop mqtt db adminer db-api ingest
 ```
+
+### Using the endpoints
+
+There are two main endpoints: the MQTT broker and db-api. The MQTT broker
+handles input into the system, while db-api provides an API to access
+information hosted internally.
+
+To start, lets add data into the system using the `inlet` program. `inlet`
+connects via MQTT to the broker and sends packets of data under many different
+sensor names. This simulates having many real-world senors publishing
+simultaneously (somewhat).
+
+To run `inlet`, do the following:
+
+```bash
+cd inlet
+export SENSOR_TYPES_FILE=sensors.yaml
+cargo run
+```
+
+The `SENSOR_TYPES_FILE` environmental variable sets the path to the config
+`inlet` uses to setup. This contains information about the sensors it sends
+data as. When running `inlet`, it should display information about what MQTT
+topics it will be publishing as. It then begins to stream 10,000 packets per
+sensor, jumping between each of the sensors in the process.
+
+When `inlet` finishes running, the database should now have data in it. To
+check this, we can use the `db-api`. Full endpoint documentation for `db-api`
+can be found in it's README file. The `db-api` should be exposed under port
+`3001`. Run the following to test this:
+
+```bash
+curl http://localhost:3001
+```
+
+You should recieve a packet containing a JSON struct like the following:
+`{"available_endpoints": ["sensor", "reading"]}`. These two endpoints should be
+available to use.
+
+Lets try the `sensor` endpoint:
+
+```bash
+curl http://localhost:3001/sensor?gt=0
+```
+
+This should return all sensors with an ID greater than 0, which is all sensors.
+Sensors are assigned an ID by the database as they connect to the MQTT broker
+and send their first packet (ID is automatically assigned). The return should
+also include the topic of each sensor.
+
+Now lets look at the `reading` enpoint:
+
+```bash
+curl http://localhost:3001/reading?sensor_id=10
+```
+
+This returns all readings in the database with a `sensor_id` of 10. You can
+replace this value with any sensor found in the previous `sensor` endpoint
+command to get different numbers.
+
+You can also filter off of the reading submission time. Internally, the
+database attaches a timestamp to each reading, marking the time that the
+reading was submitted into the database (not when the reading was taken). The
+`reading` endpoint also has `before` and `after` filters that can be used with
+a Unix timestamp to find all readings before or after a certain time.
+
+From the previous `reading` request, find two readings separated in time, grab
+the timestamps and enter them into the request below, with `before` being the
+larger timestamp and `after` being the smaller timestamp:
+
+```bash
+curl http://localhost:3001/reading?before=<timestamp>&after=<timestamp>&sensor_id=10
+```
+
+You should get back all readings between those two timestamps. We also further
+queried on just readings from sensors with a `sensor_id` of 10.
 
 
 ## Architecture
@@ -226,13 +302,14 @@ front-end and UI). Maybe later, if time allows.
 
 ## TODO
 
-- [ ] Cleanup fake passwords and correctly use secrets. (There aren't any actual secrets in the codebase, but there are placeholder "passwords".)
+- [ ] Cleanup fake passwords and correctly use secrets. (There aren't any actual secrets in the codebase, but there are placeholder "passwords")
 - [ ] Modify the sensor payload to take in a raw f32 instead of a encoded Rust struct.
 - [ ] Potentially add metadata to the sensor payload. Not sure exactly what would be useful, but maybe.
 - [ ] Add alerting to ingest's features. Send an email or a payload to a specific URL.
 - [ ] Allow ingest to post readings without calculations (good for low frequency sensors).
 - [ ] Switch to using yaml configs everywhere and remove environmental variables unless needed.
 - [ ] Correctly handle errors around the codebase.
+- [ ] Implement pagination and request throttling into `db-api`.
 
 ## License
 MIT
