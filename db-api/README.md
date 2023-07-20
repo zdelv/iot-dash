@@ -14,16 +14,16 @@ Gets sensors saved in the database given filters.
         <th>Description</th>
     </tr>
     <tr>
-        <td>`id`</td>
-        <td>Gets the sensor matching this id. Cannot be used with `lt` or `gt`.</td>
+        <td><code>id</code></td>
+        <td>Gets the sensor matching this id. Cannot be used with <code>lt</code> or <code>gt</code>.</td>
     </tr>
     <tr>
-        <td>`gt`</td>
-        <td>Gets the sensor greater than this id. Can be used with `lt`, but not `id`.</td>
+        <td><code>gt</code></td>
+        <td>Gets the sensor greater than this id. Can be used with <code>lt</code>, but not <code>id</code>.</td>
     </tr>
     <tr>
-        <td>`lt`</td>
-        <td>Gets the sensor less than this id. Can be used with `gt`, but not `id`.</td>
+        <td><code>lt</code></td>
+        <td>Gets the sensor less than this id. Can be used with <code>gt</code>, but not <code>id</code>.</td>
     </tr>
 </table>
 
@@ -43,6 +43,38 @@ _Return_:
         "sensors": [
             { "sensor_id": 10, "topic": "/a/sensor/topic" }
         ]
+    }
+}
+```
+
+### `POST /sensor`
+
+Adds new sensors given a list of topics.
+
+#### Example:
+
+
+_URL_
+```
+http://localhost:3001/sensor
+```
+
+_JSON POST Body_:
+```json
+{
+    "topics": [
+        "/a/topic",
+        "/another/topic"
+    ]
+}
+```
+
+_Return_:
+```json
+{
+    "count": 2,
+    "result": {
+        "sensor_ids": [1, 2]
     }
 }
 ```
