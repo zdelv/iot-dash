@@ -12,7 +12,7 @@ information retrieval.
 
 All of this is designed to be containerized and can run semi-independently. Some
 requirements exist, like the connection between the real-time analytics
-component and the database, or the front-end and the database. All container
+component and the database, or the REST API and the database. All container
 orchestration is done via Podman, with shell scripts for defining the Pod.
 
 Expected uses of the platform are the following:
@@ -109,8 +109,7 @@ topics it will be publishing as. It then begins to stream 10,000 packets per
 sensor, jumping between each of the sensors in the process.
 
 When `inlet` finishes running, the database should now have data in it. To
-check this, we can use the `db-api`. Full endpoint documentation for `db-api`
-can be found in it's README file. The `db-api` should be exposed under port
+check this, we can use the `db-api`. The `db-api` should be exposed under port
 `3001`. Run the following to test this:
 
 ```bash
@@ -129,8 +128,8 @@ curl http://localhost:3001/sensor?gt=0
 
 This should return all sensors with an ID greater than 0, which is all sensors.
 Sensors are assigned an ID by the database as they connect to the MQTT broker
-and send their first packet (ID is automatically assigned). The return should
-also include the topic of each sensor.
+and send their first packet. The return should also include the topic of each
+sensor.
 
 Now lets look at the `reading` enpoint:
 
@@ -157,8 +156,12 @@ curl http://localhost:3001/reading?before=<timestamp>&after=<timestamp>&sensor_i
 ```
 
 You should get back all readings between those two timestamps. We also further
-queried on just readings from sensors with a `sensor_id` of 10.
+queried on just readings between those times from sensors with a `sensor_id` of
+10.
 
+The `db-api` also has `POST` support for adding sensors and readings. The
+`ingest` tool uses these, and new tools can be built off of them. Full endpoint
+documentation for `db-api` can be found in it's README file. 
 
 ## Architecture
 
@@ -169,7 +172,7 @@ them, are:
     - Faults on a production line or a garage door being open at an unexpected
         time require quick alerting to prevent downstream issues from occurring.
         An ingest application allows for configuration of the analytics and
-        alerting from realtime data.
+        alerting from realtime data (alerting not yet implemented).
 2. Configurablity
     - No single setup will work with all applications. Some degree of
         configuration to each section of the platform will allow for wider
@@ -286,8 +289,9 @@ Each point is further explained below:
         prior to startup for how it should handle each sensor type. For example,
         the ingest tool could treat a temperature sensor by performing a set of
         average, minimum, and maximum calculations every X seconds, while
-        treating a door sensor by calculating the number of activations over the
-        last X seconds.
+        treating a door sensor by calculating the number of activations over
+        the last X seconds. Currently, X is a global interval, not configurable
+        per sensor type.
 4. The ingest application submits calculations into the database API.
     - The database API is a REST API that allows for GET and POST of sensors
         and readings.
@@ -300,8 +304,25 @@ Each point is further explained below:
 Both 6 and 7 are not implemented in this codebase as of right now (the
 front-end and UI). Maybe later, if time allows.
 
+## Limitations
+
+Some aspects of this design may seem limited or unscalable. Examples may be the
+linear structure without an event streamer like Kafka, or how the sensors have
+no metadata in their postings, or the fairly simple database schema. In some
+ways, all of this is on purpose. The goal of this project is to explore the
+design aspects of a platform of this scope and to design what I can now. It is
+not to build a fully feature-rich platform that will be a drop in for any
+usecase.
+
+I plan on using this someday for IoT sensors around my home. I'm hoping to
+build the "bones" of everything and fill in what I can now. Later, when I have
+a full use for this project, I can go through and fill in the remainder, which
+is hopefully a small amount, assuming I do a decent job now of planning for the
+future.
+
 ## TODO
 
+- [ ] Build out testing on each component.
 - [ ] Cleanup fake passwords and correctly use secrets. (There aren't any actual secrets in the codebase, but there are placeholder "passwords")
 - [ ] Modify the sensor payload to take in a raw f32 instead of a encoded Rust struct.
 - [ ] Potentially add metadata to the sensor payload. Not sure exactly what would be useful, but maybe.
