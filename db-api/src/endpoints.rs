@@ -336,3 +336,9 @@ where
         }),
     )
 }
+
+/// Fallback for when no route matches.
+pub async fn fallback(uri: axum::http::Uri) -> (StatusCode, String) {
+    tracing::info!("Request to unknown endpoint: {}", uri);
+    (StatusCode::NOT_FOUND, format!("No endpoint found matching {}", uri))
+}

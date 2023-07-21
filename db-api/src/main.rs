@@ -10,7 +10,7 @@ use std::time::Duration;
 use tracing_subscriber::fmt;
 use tracing_subscriber::prelude::*;
 
-use crate::endpoints::{get_readings, get_sensors, post_readings, post_sensors, root};
+use crate::endpoints::{get_readings, get_sensors, post_readings, post_sensors, root, fallback};
 
 #[tokio::main()]
 async fn main() -> anyhow::Result<()> {
@@ -73,6 +73,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/sensor", post(post_sensors))
         .route("/reading", get(get_readings))
         .route("/reading", post(post_readings))
+        .fallback(fallback)
         .with_state(pool);
     //.route("/sensor/:sensor_id/reading/:reading_id", get(get_sensor_reading));
 
