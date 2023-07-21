@@ -254,7 +254,7 @@ async fn insert_new_sensor(
         .result
         .get("sensor_ids")
         .ok_or(anyhow!("Could not find sensor_ids field!"))?
-        .get(0)
+        .first()
         .ok_or(anyhow!("No sensor_ids found!"))?;
     Ok(*id)
 }
@@ -408,15 +408,14 @@ async fn parse_data(
 
                                         let num_elems = results.len();
                                         let midpoint = num_elems / 2;
-                                        let med;
 
                                         // If odd, return midpoint.
-                                        if num_elems % 2 == 1 {
-                                            med = data[midpoint];
+                                        let med = if num_elems % 2 == 1 {
+                                            data[midpoint]
                                         // If even, return average of two middle values.
                                         } else {
-                                            med = 0.5 * (data[midpoint - 1] + data[midpoint]);
-                                        }
+                                            0.5 * (data[midpoint - 1] + data[midpoint])
+                                        };
                                         results.push(med)
                                     }
                                 }
@@ -508,7 +507,7 @@ async fn main() -> anyhow::Result<()> {
     loop {
         tracing::info!("Attempting to conenct to db-api: {}", &db_api_hostname);
 
-        if let Ok(_) = http_client.get(&db_api_hostname).send().await {
+        if http_client.get(&db_api_hostname).send().await.is_ok() {
             break;
         }
 
