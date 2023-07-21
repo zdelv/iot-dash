@@ -11,6 +11,9 @@ pub struct RootResponse {
     available_endpoints: Vec<String>,
 }
 
+/// Response recieved when going to the root URL.
+///
+/// Currently only returns the available endpoints.
 #[tracing::instrument]
 pub async fn root() -> (StatusCode, Json<RootResponse>) {
     tracing::debug!("root request");
@@ -36,6 +39,7 @@ impl<T: Serialize> Return<T> {
     }
 }
 
+/// The query when a GET is recieved on the /sensor endpoint
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct SensorsQuery {
     id: Option<i32>,
@@ -43,6 +47,7 @@ pub struct SensorsQuery {
     lt: Option<i32>,
 }
 
+/// The return from a GET on the /sensor endpoint
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct SensorsReturn {
     sensors: Vec<common::Sensor>,
@@ -50,6 +55,9 @@ pub struct SensorsReturn {
 
 type GetSensorsReturn = Result<(StatusCode, Json<Return<SensorsReturn>>), ResultErrorReturn>;
 
+/// Endpoint handling GET /sensor
+///
+/// This should return a list of sensors matching what is in the database given the query.
 #[tracing::instrument]
 pub async fn get_sensors(
     Query(query): Query<SensorsQuery>,
@@ -121,6 +129,9 @@ pub struct SensorsPostReturn {
 
 type PostSensorsReturn = Result<(StatusCode, Json<Return<SensorsPostReturn>>), ResultErrorReturn>;
 
+/// Endpoint handling POST /sensor
+///
+/// See above for more information on the JSON payload.
 #[tracing::instrument]
 pub async fn post_sensors(
     State(pool): State<PgPool>,
@@ -157,6 +168,7 @@ pub async fn post_sensors(
     ))
 }
 
+/// The query that is recieved from a GET request on the /reading endpoint
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct ReadingsQuery {
     sensor_id: Option<i32>,
@@ -164,6 +176,7 @@ pub struct ReadingsQuery {
     before: Option<i32>,
 }
 
+/// The return from a GET request on the /reading endpoint.
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct ReadingsReturn {
     readings: Vec<common::Reading>,
@@ -171,6 +184,9 @@ pub struct ReadingsReturn {
 
 type GetReadingsReturn = Result<(StatusCode, Json<Return<ReadingsReturn>>), ResultErrorReturn>;
 
+/// Endpoint handling GET /reading
+///
+/// This should return a list of readings matching what is in the database given the query.
 #[tracing::instrument]
 pub async fn get_readings(
     State(pool): State<PgPool>,
@@ -260,6 +276,9 @@ pub struct ReadingsPostReturn {
 
 type PostReadingsReturn = Result<(StatusCode, Json<Return<ReadingsPostReturn>>), ResultErrorReturn>;
 
+/// Endpoint handling POST /reading
+///
+/// See above for more information on the JSON payload.
 #[tracing::instrument]
 pub async fn post_readings(
     State(pool): State<PgPool>,
