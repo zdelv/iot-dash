@@ -1,16 +1,12 @@
 mod endpoints;
 
-use axum::{
-    routing::{get, post},
-    Router,
-};
 use sqlx::postgres::PgPoolOptions;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::time::Duration;
 use tracing_subscriber::fmt;
 use tracing_subscriber::prelude::*;
 
-use crate::endpoints::{get_readings, get_sensors, post_readings, post_sensors, root, fallback};
+use crate::endpoints::app;
 
 #[tokio::main()]
 async fn main() -> anyhow::Result<()> {
@@ -67,15 +63,7 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let app = Router::new()
-        .route("/", get(root))
-        .route("/sensor", get(get_sensors))
-        .route("/sensor", post(post_sensors))
-        .route("/reading", get(get_readings))
-        .route("/reading", post(post_readings))
-        .fallback(fallback)
-        .with_state(pool);
-    //.route("/sensor/:sensor_id/reading/:reading_id", get(get_sensor_reading));
+    let app = app(pool);
 
     let addr = SocketAddr::from((addr.parse::<Ipv4Addr>()?, port));
     tracing::info!("Listening on {}", addr);

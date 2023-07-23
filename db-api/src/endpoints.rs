@@ -1,10 +1,22 @@
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    Json,
+    routing::{get, post},
+    Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::postgres::PgPool;
+use sqlx::{postgres::PgPool, Pool, Postgres};
+
+pub fn app(pool: Pool<Postgres>) -> Router {
+    Router::new()
+        .route("/", get(root))
+        .route("/sensor", get(get_sensors))
+        .route("/sensor", post(post_sensors))
+        .route("/reading", get(get_readings))
+        .route("/reading", post(post_readings))
+        .fallback(fallback)
+        .with_state(pool)
+}
 
 #[derive(Serialize, Deserialize)]
 pub struct RootResponse {
