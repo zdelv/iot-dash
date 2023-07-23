@@ -397,10 +397,14 @@ dependencies = [
  "chrono",
  "common",
  "dotenvy",
+ "hyper",
+ "mime",
  "serde",
+ "serde_json",
  "serde_with",
  "sqlx",
  "tokio",
+ "tower",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
@@ -1532,20 +1536,6 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "winreg",
-]
-
-[[package]]
-name = "rest-api"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "dotenvy",
- "serde",
- "sqlx",
- "tokio",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]

@@ -18,3 +18,10 @@ tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 common = { path = "../common" }
 tracing-appender = "0.2.2"
+
+
+[dev-dependencies]
+tower = "0.4.13"
+hyper = "0.14.27"
+serde_json = "1.0.103"
+mime = "0.3.17"

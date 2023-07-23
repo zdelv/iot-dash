@@ -371,5 +371,247 @@ where
 /// Fallback for when no route matches.
 pub async fn fallback(uri: axum::http::Uri) -> (StatusCode, String) {
     tracing::info!("Request to unknown endpoint: {}", uri);
-    (StatusCode::NOT_FOUND, format!("No endpoint found matching {}", uri))
+    (
+        StatusCode::NOT_FOUND,
+        format!("No endpoint found matching {}", uri),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::{body::Body, http, http::Request};
+    use serde_json::json;
+    use sqlx::{Pool, Postgres};
+    use tower::ServiceExt;
+
+    #[sqlx::test]
+    async fn i_am_root(pool: Pool<Postgres>) {
+        let app = app(pool);
+
+        let response = app
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(body, json!({"available_endpoints": ["sensor", "reading"]}));
+    }
+
+    #[sqlx::test]
+    async fn check_fallback(pool: Pool<Postgres>) {
+        let app = app(pool);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/does-not-exist")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+
+        assert_eq!(&body[..], b"No endpoint found matching /does-not-exist");
+    }
+
+    #[sqlx::test(fixtures("sensors", "readings"))]
+    async fn can_get_sensor_gt_lt(pool: Pool<Postgres>) {
+        let app = app(pool);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/sensor?gt=1&lt=4")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+        let exp_body = json!({
+            "count": 2,
+            "result": {
+                "sensors": [
+                    { "sensor_id": 2, "topic": "/this/is/a/topic" },
+                    { "sensor_id": 3, "topic": "/home/livingroom/light/1" },
+                ]
+            }
+        });
+
+        assert_eq!(body, exp_body);
+    }
+
+    #[sqlx::test(fixtures("sensors", "readings"))]
+    async fn can_get_sensor_id(pool: Pool<Postgres>) {
+        let app = app(pool);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/sensor?id=4")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+        let exp_body = json!({
+            "count": 1,
+            "result": {
+                "sensors": [
+                    { "sensor_id": 4, "topic": "/home/livingroom/light/2" },
+                ]
+            }
+        });
+
+        assert_eq!(body, exp_body);
+    }
+
+    #[sqlx::test(fixtures("sensors", "readings"))]
+    async fn can_post_sensor(pool: Pool<Postgres>) {
+        let app = app(pool);
+
+        let post_body = json!({
+            "topics": ["/another/topic", "/yet/another/topic"]
+        });
+
+        let post_body = serde_json::to_string(&post_body).unwrap();
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(http::Method::POST)
+                    .uri("/sensor")
+                    .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                    .body(Body::from(post_body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::CREATED);
+
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+        let exp_body = json!({
+            "count": 2,
+            "result": {
+                "sensor_ids": [5, 6]
+            }
+        });
+
+        assert_eq!(body, exp_body);
+    }
+
+    #[sqlx::test(fixtures("sensors", "readings"))]
+    async fn can_get_reading_all(pool: Pool<Postgres>) {
+        let app = app(pool);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/reading?sensor_id=4&after=1690127300&before=1690127430")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+        let exp_body = json!({
+            "count": 3,
+            "result": {
+                "readings": [
+                    {
+                        "reading_id": 4,
+                        "sensor_id": 4,
+                        "timestamp": 1690127400,
+                        "type": ["median", "count"],
+                        "reading": [15.1, 10.0]
+                    },
+                    {
+                        "reading_id": 5,
+                        "sensor_id": 4,
+                        "timestamp": 1690127410,
+                        "type": ["median", "count"],
+                        "reading": [25.2, 20.0]
+                    },
+                    {
+                        "reading_id": 6,
+                        "sensor_id": 4,
+                        "timestamp": 1690127420,
+                        "type": ["median", "count"],
+                        "reading": [35.3, 30.0]
+                    }
+                ]
+            }
+        });
+
+        assert_eq!(body, exp_body);
+    }
+
+    #[sqlx::test(fixtures("sensors", "readings"))]
+    async fn can_post_reading(pool: Pool<Postgres>) {
+        let app = app(pool);
+
+        let post_body = json!({
+            "readings": [
+                {"sensor_id": 3, "reading_type": ["average", "maximum"], "reading": [10.2, 100.5]},
+                {"sensor_id": 4, "reading_type": ["minimum", "count"], "reading": [12.2, 100.0]},
+                {"sensor_id": 1, "reading_type": ["median", "maximum", "minimum"], "reading": [15.1, 10.5, 1.0]},
+            ]
+        });
+
+        let post_body = serde_json::to_string(&post_body).unwrap();
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(http::Method::POST)
+                    .uri("/reading")
+                    .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                    .body(Body::from(post_body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::CREATED);
+
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+        let exp_body = json!({
+            "count": 3,
+            "result": {
+                "reading_ids": [7, 8, 9]
+            }
+        });
+
+        assert_eq!(body, exp_body);
+    }
 }

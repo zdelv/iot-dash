@@ -1,5 +1,44 @@
 # `db-api`
 
+## Usage
+
+This is not meant to be run standalone, and instead should be run as a part of
+the larger IoT Dashboard pod. See the root README for more information on this.
+
+Starting the `db-api` service outside of a pod requires nothing more than
+running the binary:
+
+```bash
+cargo run --release
+```
+
+If the service is being run within a pod, ensure that the `.env` file is in the
+same directory as the binary is started, and that the `POD` environmental
+variable is set to some value (the value is irrelevant). The `POD`
+environmental variable tells the service to use the `POD_DATABASE_URL` instead
+of the `DATABASE_URL`, which exists for testing w/ SQLx.
+
+By default `db-api` is set to a log level of `debug`, which includes all
+logging currently. To change this, modify the `LOG_FILTER` variable in the
+`.env` file. The `LOG_DIR` environmental variable can also be used to set where
+the log should be saved. If `LOG_DIR` is not supplied, the log is placed in the
+current directory.
+
+
+## Testing
+
+It is required that you have previously created the pod for the IoT Dashboard
+platform. See the root README for more information. 
+
+Assuming the pod is currently not running, run the following commands prior to
+running tests:
+
+```bash podman start db adminer ```
+
+This will start the Postgres database as well as the Adminer interface (to help
+debug test failures). You may now run the tests using the standard `cargo
+test`.
+
 ## Endpoints
 
 ### `GET /sensor`

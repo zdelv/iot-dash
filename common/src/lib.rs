@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use serde_with::{formats::Strict, TimestampMilliSeconds};
+use serde_with::{formats::Strict, TimestampSeconds};
 use sqlx::{
     postgres::{PgHasArrayType, PgTypeInfo},
     FromRow,
@@ -12,14 +12,14 @@ pub struct SensorId(pub i32);
 #[serde_with::serde_as]
 #[derive(Serialize, Deserialize, FromRow, Debug)]
 pub struct Reading {
-    reading_id: i32,
-    sensor_id: i32,
-    #[serde_as(as = "TimestampMilliSeconds<i64, Strict>")]
-    timestamp: DateTime<Utc>,
+    pub reading_id: i32,
+    pub sensor_id: i32,
+    #[serde_as(as = "TimestampSeconds<i64, Strict>")]
+    pub timestamp: DateTime<Utc>,
     #[serde(rename = "type")]
     #[sqlx(rename = "type")]
-    reading_type: Vec<ReadingType>,
-    reading: Vec<f32>,
+    pub reading_type: Vec<ReadingType>,
+    pub reading: Vec<f32>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, sqlx::Type)]
