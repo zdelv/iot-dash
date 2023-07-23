@@ -25,7 +25,7 @@ Expected uses of the platform are the following:
         sensor counts and stricter requirements on data storage and alerting.
     - The realtime analytics can be used to alert for faults as well as perform
         statistics on overall yields or equipment uptime.
-    - The dashboard would be used by non-engineering (business, finance, etc)
+    - A dashboard could also be used by non-engineering (business, finance, etc)
         members for reporting purposes. (Not implemented here)
 
 
@@ -162,6 +162,41 @@ queried on just readings between those times from sensors with a `sensor_id` of
 The `db-api` also has `POST` support for adding sensors and readings. The
 `ingest` tool uses these, and new tools can be built off of them. Full endpoint
 documentation for `db-api` can be found in it's README file. 
+
+### Testing
+
+Full scale testing for this project is still a work-in-progress. Currently,
+`db-api` has a full suite of unit tests thanks to SQLx and it's great DB
+testing support, as well as Axum and Tower's easy to use offline service
+handlers.
+
+`ingest` is unfortunately a bit untested currently. This service has
+connections to both the MQTT broker and the `db-api`, meaning it either
+requires mocks or having both services stood up during testing. The current
+plan is to punt adding unit tests to `ingest` and to instead build out the
+integration testing of the entire platform. That should provide ample testing
+for `ingest` for the time being. When time allows, `ingest` will be refactored
+to better support unit testing.
+
+The unit tests that currently exist can be run with `cargo test`. These require
+that the Postgres database be running. After going through the above setup
+procedure for creating the pod, you should be able to start the database with
+the following command:
+
+```bash
+podman start db
+```
+
+Then run the tests (from the root `iot_dash` directory):
+
+```bash
+cargo test
+```
+
+You may also start `adminer` in the same way, which will give you an admin
+interface into the database. By default, SQLx leaves any databases around after
+a panic (test failure). Adminer allows you to investigate test failures fairly
+easily.
 
 ## Architecture
 
@@ -312,7 +347,7 @@ no metadata in their postings, or the fairly simple database schema. In some
 ways, all of this is on purpose. The goal of this project is to explore the
 design aspects of a platform of this scope and to design what I can now. It is
 not to build a fully feature-rich platform that will be a drop in for any
-usecase.
+usecase, at least right now.
 
 I plan on using this someday for IoT sensors around my home. I'm hoping to
 build the "bones" of everything and fill in what I can now. Later, when I have
@@ -322,7 +357,10 @@ future.
 
 ## TODO
 
-- [ ] Build out testing on each component.
+- Build out testing on each component.
+    - [x] Add unit testing to `db-api`
+    - [ ] Add integration testing
+    - [ ] Refactor and add unit tests to `ingest`
 - [ ] Cleanup fake passwords and correctly use secrets. (There aren't any actual secrets in the codebase, but there are placeholder "passwords")
 - [ ] Modify the sensor payload to take in a raw f32 instead of a encoded Rust struct.
 - [ ] Potentially add metadata to the sensor payload. Not sure exactly what would be useful, but maybe.
