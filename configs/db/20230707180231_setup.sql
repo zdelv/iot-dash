@@ -5,7 +5,7 @@ CREATE TABLE sensors (
 );
 
 CREATE TYPE READING_TYPE AS ENUM ('minimum', 'maximum', 'average', 'median', 'count');
-CREATE TABLE stats (
+CREATE TABLE readings (
 	reading_id SERIAL NOT NULL UNIQUE,
 	sensor_id INT NOT NULL,
 	timestamp TIMESTAMPTZ NOT NULL,
@@ -16,4 +16,4 @@ CREATE TABLE stats (
 		FOREIGN KEY(sensor_id)
 			REFERENCES sensors(sensor_id)
 );
-ALTER TABLE stats ALTER COLUMN timestamp SET DEFAULT NOW();
+ALTER TABLE readings ALTER COLUMN timestamp SET DEFAULT NOW();

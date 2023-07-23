@@ -201,29 +201,29 @@ pub async fn get_readings(
             sensor_id: Some(sensor_id),
             after: None,
             before: None,
-        } => sqlx::query_as("SELECT * FROM stats WHERE sensor_id = $1").bind(sensor_id),
+        } => sqlx::query_as("SELECT * FROM readings WHERE sensor_id = $1").bind(sensor_id),
         ReadingsQuery {
             sensor_id: None,
             after: Some(after),
             before: None,
-        } => sqlx::query_as("SELECT * FROM stats WHERE timestamp > to_timestamp($1)").bind(after),
+        } => sqlx::query_as("SELECT * FROM readings WHERE timestamp > to_timestamp($1)").bind(after),
         ReadingsQuery {
             sensor_id: None,
             after: None,
             before: Some(before),
-        } => sqlx::query_as("SELECT * FROM stats WHERE timestamp < to_timestamp($1)").bind(before),
+        } => sqlx::query_as("SELECT * FROM readings WHERE timestamp < to_timestamp($1)").bind(before),
         ReadingsQuery {
             sensor_id: None,
             after: Some(after),
             before: Some(before),
-        } => sqlx::query_as("SELECT * FROM stats WHERE timestamp > to_timestamp($1) AND timestamp < to_timestamp($2)")
+        } => sqlx::query_as("SELECT * FROM readings WHERE timestamp > to_timestamp($1) AND timestamp < to_timestamp($2)")
             .bind(after)
             .bind(before),
         ReadingsQuery {
             sensor_id: Some(sensor_id),
             after: Some(after),
             before: Some(before),
-        } => sqlx::query_as("SELECT * FROM stats WHERE sensor_id = $1 AND timestamp > to_timestamp($2) AND timestamp < to_timestamp($3)")
+        } => sqlx::query_as("SELECT * FROM readings WHERE sensor_id = $1 AND timestamp > to_timestamp($2) AND timestamp < to_timestamp($3)")
             .bind(sensor_id)
             .bind(after)
             .bind(before),
@@ -299,7 +299,7 @@ pub async fn post_readings(
     let mut reading_ids = Vec::with_capacity(input.readings.len());
     for reading in input.readings {
         let id: i32 = sqlx::query_scalar(
-            r#"INSERT INTO stats (sensor_id, type, reading)
+            r#"INSERT INTO readings (sensor_id, type, reading)
             VALUES ($1, $2::reading_type[], $3::REAL[])
             RETURNING reading_id"#,
         )
