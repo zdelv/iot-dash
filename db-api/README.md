@@ -1,5 +1,10 @@
 # `db-api`
 
+The REST API service wrapping the PostgreSQL database. This is designed to be
+the sole service that communicates directly with the database. All other
+services that need access to the database should communicate with this service
+via its REST API. The API is described below.
+
 ## Usage
 
 This is not meant to be run standalone, and instead should be run as a part of
@@ -33,7 +38,9 @@ platform. See the root README for more information.
 Assuming the pod is currently not running, run the following commands prior to
 running tests:
 
-```bash podman start db adminer ```
+```bash
+bash podman start db adminer
+```
 
 This will start the Postgres database as well as the Adminer interface (to help
 debug test failures). You may now run the tests using the standard `cargo
