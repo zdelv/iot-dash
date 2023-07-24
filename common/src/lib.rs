@@ -6,9 +6,16 @@ use sqlx::{
     FromRow,
 };
 
+
+/// A newtype wraper for sensor ids. All sensors have a unique id.
+///
+/// Currently unused
 #[derive(Serialize, Deserialize, Debug, sqlx::Type)]
 pub struct SensorId(pub i32);
 
+/// A singular reading. One reading may comprise more than one set of statistics on the raw data.
+/// Each statistic is denoted by the reading_type and reading vectors, where corresponding indices
+/// relate to each other (e.g., the reading type at idx i corresponds to the reading at idx i).
 #[serde_with::serde_as]
 #[derive(Serialize, Deserialize, FromRow, Debug)]
 pub struct Reading {
@@ -22,6 +29,8 @@ pub struct Reading {
     pub reading: Vec<f32>,
 }
 
+/// The possible reading types. These are statistics computed on the underlying raw data. All of
+/// these reduce large amounts of data down to a single value.
 #[derive(Serialize, Deserialize, Debug, Clone, sqlx::Type)]
 #[serde(rename_all = "lowercase")]
 #[sqlx(type_name = "reading_type")]
@@ -60,6 +69,11 @@ impl std::fmt::Display for ReadingType {
     }
 }
 
+/// A sensor. Sensors publish raw data (containing a floating point value) to the Ingest service.
+/// This service computes some set of statistics on the raw data to reduce the data size.
+///
+/// Sensors are designed to be lightweight and have low latency from the time of data acquisition
+/// and backend notification.
 #[derive(Serialize, Deserialize, sqlx::Type, FromRow, Debug)]
 pub struct Sensor {
     pub sensor_id: i32,
@@ -75,20 +89,44 @@ impl PgHasArrayType for Sensor {
     }
 }
 
-#[derive(Serialize, Deserialize, FromRow, Debug)]
-pub struct SensorType {
-    sensor_type_id: i32,
-    type_name: String,
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::Reading;
+    use chrono::{DateTime, NaiveDateTime, Utc};
+
+    use crate::{Sensor, Reading, ReadingType};
 
     #[test]
     fn test_reading_serde() {
-        let test = r#"{"reading_id": 10, "sensor_id": 20, "timestamp": 1689434031, "type": ["count", "minimum", "maximum"], "reading": [10.0, 1.5, 20.2]}"#;
+        let test = r#"{"reading_id":10,"sensor_id":20,"timestamp":1689434031,"type":["count","minimum","maximum"],"reading":[10.0,1.5,20.2]}"#;
 
-        let _reading: Reading = serde_json::from_str(test).unwrap();
+        let known_good = Reading {
+            reading_id: 10,
+            sensor_id: 20,
+            timestamp: DateTime::<Utc>::from_utc(
+                NaiveDateTime::from_timestamp_opt(1689434031, 0).unwrap(), Utc
+            ),
+            reading_type: vec![
+                ReadingType::Count,
+                ReadingType::Minimum,
+                ReadingType::Maximum,
+            ],
+            reading: vec![10.0, 1.5, 20.2],
+        };
+        let known_good = serde_json::to_string(&known_good).unwrap();
+
+        assert_eq!(test, known_good);
+    }
+
+    #[test]
+    fn test_sensor_serde() {
+        let test = r#"{"sensor_id":123,"topic":"/this/is/a/topic"}"#;
+
+        let known_good = Sensor {
+            sensor_id: 123,
+            topic: "/this/is/a/topic".to_string()
+        };
+        let known_good = serde_json::to_string(&known_good).unwrap();
+
+        assert_eq!(test, known_good);
     }
 }
