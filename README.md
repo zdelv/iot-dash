@@ -168,15 +168,8 @@ documentation for `db-api` can be found in it's README file.
 Full scale testing for this project is still a work-in-progress. Currently,
 `db-api` has a full suite of unit tests thanks to SQLx and it's great DB
 testing support, as well as Axum and Tower's easy to use offline service
-handlers.
-
-`ingest` is unfortunately a bit untested currently. This service has
-connections to both the MQTT broker and the `db-api`, meaning it either
-requires mocks or having both services stood up during testing. The current
-plan is to punt adding unit tests to `ingest` and to instead build out the
-integration testing of the entire platform. That should provide ample testing
-for `ingest` for the time being. When time allows, `ingest` will be refactored
-to better support unit testing.
+handlers. `ingest` also is able to be unit tested without any external
+services.
 
 The unit tests that currently exist can be run with `cargo test`. These require
 that the Postgres database be running. After going through the above setup
@@ -359,8 +352,8 @@ future.
 
 - Build out testing on each component.
     - [x] Add unit testing to `db-api`
+    - [x] Refactor and add unit tests to `ingest`
     - [ ] Add integration testing
-    - [ ] Refactor and add unit tests to `ingest`
 - [ ] Cleanup fake passwords and correctly use secrets. (There aren't any actual secrets in the codebase, but there are placeholder "passwords")
 - [ ] Modify the sensor payload to take in a raw f32 instead of a encoded Rust struct.
 - [ ] Potentially add metadata to the sensor payload. Not sure exactly what would be useful, but maybe.

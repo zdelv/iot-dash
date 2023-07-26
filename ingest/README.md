@@ -31,6 +31,16 @@ environmental variable (the value is irrelevant), and `ingest` will read the
 variables are designed for testing outside of the pod, while the `POD_`
 variables are designed for within the pod.
 
+## Testing
+
+`ingest` can be unit tested using cargo like normal. It does not require any
+external connections (the `db-api` is completely mocked). Run tests like
+normal:
+
+```bash
+cargo test
+```
+
 ## Config
 
 The configuration file has the following format:

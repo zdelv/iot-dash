@@ -1,4 +1,5 @@
 mod actors;
+mod connection;
 
 use anyhow::Context;
 use rumqttc::{AsyncClient, MqttOptions, QoS};
@@ -7,10 +8,12 @@ use tokio::{
     sync::{mpsc, RwLock},
     task,
 };
+use tokio_util::sync::CancellationToken;
 use tracing_subscriber::fmt;
 use tracing_subscriber::prelude::*;
 
 use crate::actors::*;
+use crate::connection::{DbApiClient, DbApiConnection};
 
 #[tokio::main()]
 async fn main() -> anyhow::Result<()> {
@@ -71,13 +74,13 @@ async fn main() -> anyhow::Result<()> {
     mqtt_client.subscribe("home/#", QoS::AtMostOnce).await?;
 
     // Client for communicating with db-api over HTTP
-    let http_client = reqwest::Client::new();
+    let http_client = DbApiClient::new(reqwest::Client::new(), &db_api_hostname);
 
     // Attempt to connect to the db-api before continuing.
     loop {
         tracing::info!("Attempting to conenct to db-api: {}", &db_api_hostname);
 
-        if http_client.get(&db_api_hostname).send().await.is_ok() {
+        if http_client.is_connection_up().await {
             break;
         }
 
@@ -89,17 +92,36 @@ async fn main() -> anyhow::Result<()> {
     // Channel used to transfer messages between eventloop and handler
     let (db_write_ch, db_read_ch) = mpsc::channel::<ChannelMessage>(100);
 
-    // MQTT Eventloop
-    let eventloop_task = task::spawn(run_eventloop(eventloop, db_write_ch.clone()));
+    // Token used to cancel tasks. All tasks recieve this token and are setup to cancel when the
+    // token is canelled.
+    let token = CancellationToken::new();
+    // Shutdown channel that is not read or received from (for data at least). This is used to
+    // signal when our tasks have gracefully exited. We do not cancel them with unfinished state.
+    let (shutdown_send, mut shutdown_recv) = mpsc::channel(1);
+
+    // MQTT Eventloop (pushes recieved events to data handler)
+    let eventloop_task = task::spawn(run_eventloop(
+        eventloop,
+        db_write_ch,
+        token.clone(),
+        shutdown_send.clone(),
+    ));
     // Data Handler (pushes data into database)
-    let handle_task = task::spawn(handle_data(database.clone(), db_read_ch, 100));
+    let handle_task = task::spawn(handle_data(
+        database.clone(),
+        db_read_ch,
+        100,
+        token.clone(),
+        shutdown_send.clone(),
+    ));
     // Data Parser (routinely computes statistics on data)
     let parse_task = task::spawn(parse_data(
         database,
         http_client,
-        db_api_hostname,
         sensor_infos,
         interval as u64,
+        token.clone(),
+        shutdown_send,
     ));
 
     // Wait for any of the tasks (or ctrl+c) to return.
@@ -134,8 +156,29 @@ async fn main() -> anyhow::Result<()> {
             } else {
                 tracing::error!("Caught ctrl+c, exiting.");
             }
-            // Send one last stop message to the handler.
-            db_write_ch.send(ChannelMessage::Stop).await?;
+        }
+    }
+    tracing::info!("Starting shutdown. Waiting for tasks to complete. If 10 seconds pass, force shutdown will occur. Press ctrl+c again to start force shutdown immediately.");
+
+    // Send the cancellation to the token.
+    token.cancel();
+
+    // Wait for the channel to close for a graceful shutdown. If 10 seconds pass, we forcefully
+    // cancel the tasks (drop them completely). The use can also press ctrl+c to kill the program
+    // before 10 seconds are up.
+    tokio::select! {
+        _ = shutdown_recv.recv() => {}
+        _ = tokio::time::sleep(Duration::from_secs(10)) => {
+            tracing::error!("A task did not properly shutdown, forcing shutdown!");
+            Err(anyhow::anyhow!("Failed to properly shutdown!"))?
+        }
+        res = tokio::signal::ctrl_c() => {
+            if let Err(e) = res {
+                tracing::error!("Signal Error: {}", e);
+            } else {
+                tracing::error!("Caught ctrl+c again, forcefully dropping tasks.");
+            }
+            Err(anyhow::anyhow!("Failed to properly shutdown!"))?
         }
     }
 

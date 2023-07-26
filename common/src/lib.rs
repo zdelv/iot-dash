@@ -31,7 +31,7 @@ pub struct Reading {
 
 /// The possible reading types. These are statistics computed on the underlying raw data. All of
 /// these reduce large amounts of data down to a single value.
-#[derive(Serialize, Deserialize, Debug, Clone, sqlx::Type)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone, sqlx::Type)]
 #[serde(rename_all = "lowercase")]
 #[sqlx(type_name = "reading_type")]
 #[sqlx(rename_all = "lowercase")]
