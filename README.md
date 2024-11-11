@@ -42,8 +42,8 @@ Expected uses of the platform are the following:
 Clone this repo and enter the root of the directory:
 
 ```bash
-git clone https://git.sr.ht/~rael/iot_dash
-cd iot_dash
+git clone https://github.com/zdelv/iot-dash
+cd iot-dash
 ```
 
 Create the pod by running `create_pod.sh` and providing a pod name as the first
@@ -180,7 +180,7 @@ the following command:
 podman start db
 ```
 
-Then run the tests (from the root `iot_dash` directory):
+Then run the tests (from the root `iot-dash` directory):
 
 ```bash
 cargo test
